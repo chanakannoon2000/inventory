@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -e
+
+cd /var/www/html
+
+# Render/Neon often expose DATABASE_URL; Laravel reads DB_URL
+if [ -n "${DATABASE_URL:-}" ] && [ -z "${DB_URL:-}" ]; then
+  export DB_URL="$DATABASE_URL"
+fi
+
+echo "Running composer..."
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --working-dir=/var/www/html
+
+echo "Ensuring storage dirs..."
+mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+chmod -R ug+rwx storage bootstrap/cache || true
+
+echo "Linking public storage..."
+php artisan storage:link --force || true
+
+echo "Caching config..."
+php artisan config:cache
+
+echo "Caching routes..."
+php artisan route:cache
+
+echo "Caching views..."
+php artisan view:cache
+
+echo "Running migrations..."
+php artisan migrate --force
+
+if [ "${RUN_SEED:-false}" = "true" ]; then
+  echo "Seeding database..."
+  php artisan db:seed --force
+fi
+
+echo "Deploy script finished."
