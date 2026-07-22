@@ -33,6 +33,44 @@ class DatabaseSeeder extends Seeder
             'receipt_running' => 1000,
         ]);
 
+        $serviceCat = Category::updateOrCreate(
+            ['name' => 'บริการ'],
+            ['barcode_prefix' => 'V', 'icon' => '🚚', 'color' => '#D8E4F0']
+        );
+
+        $unitTrip = Unit::updateOrCreate(['name' => 'เที่ยว']);
+        $unitJob = Unit::updateOrCreate(['name' => 'ครั้ง']);
+
+        Product::updateOrCreate(
+            ['barcode' => 'V000001'],
+            [
+                'name' => 'ค่าจัดส่งสินค้า',
+                'type' => Product::TYPE_SERVICE,
+                'category_id' => $serviceCat->id,
+                'unit_id' => $unitTrip->id,
+                'cost_price' => 0,
+                'sell_price' => 150,
+                'stock' => 0,
+                'min_stock' => 0,
+                'max_stock' => 0,
+            ]
+        );
+
+        Product::updateOrCreate(
+            ['barcode' => 'V000002'],
+            [
+                'name' => 'ค่าแรงขนของขึ้นบ้าน/ชั้น',
+                'type' => Product::TYPE_SERVICE,
+                'category_id' => $serviceCat->id,
+                'unit_id' => $unitJob->id,
+                'cost_price' => 0,
+                'sell_price' => 200,
+                'stock' => 0,
+                'min_stock' => 0,
+                'max_stock' => 0,
+            ]
+        );
+
         $categories = [
             ['name' => 'ปูนซีเมนต์ & คอนกรีต', 'barcode_prefix' => 'C', 'icon' => '🧱', 'color' => '#D9D2C2'],
             ['name' => 'เหล็กเส้น / เหล็กรูปพรรณ', 'barcode_prefix' => 'S', 'icon' => '⛓️', 'color' => '#CBD3D9'],

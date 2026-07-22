@@ -63,33 +63,41 @@
                         </div>
                     </button>
                 @else
-                    @php $p = $card['product']; @endphp
+                    @php
+                        $p = $card['product'];
+                        $isService = $p->isService();
+                        $soldOut = ! $isService && (float) $p->stock <= 0;
+                    @endphp
                     <button type="button"
-                         class="pcard {{ $p->isLowStock() ? 'low' : '' }} {{ (float)$p->stock <= 0 ? 'soldout' : '' }}"
+                         class="pcard {{ $isService ? 'pcard-service' : '' }} {{ $p->isLowStock() ? 'low' : '' }} {{ $soldOut ? 'soldout' : '' }}"
                          data-type="single"
+                         data-item-type="{{ $p->type ?: 'product' }}"
                          data-id="{{ $p->id }}"
                          data-name="{{ $p->name }}"
                          data-barcode="{{ $p->barcode }}"
                          data-search="{{ $p->name }} {{ $p->barcode }}"
                          data-price="{{ $p->sell_price }}"
-                         data-stock="{{ $p->stock }}"
+                         data-stock="{{ $isService ? 999999 : $p->stock }}"
                          data-unit="{{ $p->unit?->name }}"
                          data-cat="{{ $p->category_id }}"
                          data-image="{{ $p->imageSrc() }}"
-                         data-icon="{{ $p->placeholderIcon() }}"
+                         data-icon="{{ $isService ? '🚚' : $p->placeholderIcon() }}"
                          data-color="{{ $p->placeholderColor() }}"
+                         data-is-service="{{ $isService ? '1' : '0' }}"
                          onclick="addToCartFromCard(this)"
-                         @disabled((float)$p->stock <= 0)>
+                         @disabled($soldOut)>
                         @if($p->imageSrc())
                             <img class="pimg" src="{{ $p->imageSrc() }}" alt="{{ $p->name }}" loading="lazy">
                         @else
-                            <div class="pimg ph-icon" style="background:{{ $p->placeholderColor() }} !important;">{{ $p->placeholderIcon() }}</div>
+                            <div class="pimg ph-icon" style="background:{{ $p->placeholderColor() }} !important;">{{ $isService ? '🚚' : $p->placeholderIcon() }}</div>
                         @endif
                         <div class="pcard-body">
                             <div class="nm">{{ $p->name }}</div>
                             <div class="pr">{{ ($money)($p->sell_price) }}</div>
                             <div class="st {{ $p->isLowStock() ? 'warn' : '' }}">
-                                @if((float)$p->stock <= 0)
+                                @if($isService)
+                                    บริการ · ไม่ตัดสต๊อก
+                                @elseif((float)$p->stock <= 0)
                                     หมดสต๊อก
                                 @elseif($p->isLowStock())
                                     เหลือ {{ ($fmt)($p->stock) }} {{ $p->unit?->name }}
@@ -156,15 +164,17 @@ function productThumb(p, cls){
 }
 
 function addToCartFromCard(el){
+  const isService = el.dataset.isService === '1' || el.dataset.itemType === 'service';
   addToCart({
     id: Number(el.dataset.id),
     name: el.dataset.name,
     price: Number(el.dataset.price),
-    stock: Number(el.dataset.stock),
+    stock: isService ? 999999 : Number(el.dataset.stock),
     unit: el.dataset.unit||'',
     image: el.dataset.image||'',
     icon: el.dataset.icon||'📦',
     color: el.dataset.color||'#E3DFD3',
+    is_service: isService,
   });
 }
 
@@ -181,10 +191,13 @@ function openSizePicker(el){
   window._pickerVariants = variants;
 
   const rows = variants.map((v, i) => {
-    const disabled = Number(v.stock) <= 0;
-    const stockTxt = disabled
-      ? 'หมดสต๊อก'
-      : ('เหลือ ' + Number(v.stock).toLocaleString('th-TH') + (v.unit ? ' '+v.unit : ''));
+    const isService = !!v.is_service || v.item_type === 'service';
+    const disabled = !isService && Number(v.stock) <= 0;
+    const stockTxt = isService
+      ? 'บริการ'
+      : (disabled
+        ? 'หมดสต๊อก'
+        : ('เหลือ ' + Number(v.stock).toLocaleString('th-TH') + (v.unit ? ' '+v.unit : '')));
     return `
       <button type="button" class="size-opt ${disabled ? 'disabled' : ''} ${v.low ? 'low' : ''}"
         ${disabled ? 'disabled' : ''}
@@ -206,28 +219,31 @@ function openSizePicker(el){
 
 function pickSizeVariant(index){
   const v = (window._pickerVariants || [])[index];
-  if(!v || Number(v.stock) <= 0){ toast('สินค้าหมดสต๊อก'); return; }
+  const isService = !!(v && (v.is_service || v.item_type === 'service'));
+  if(!v || (!isService && Number(v.stock) <= 0)){ toast('สินค้าหมดสต๊อก'); return; }
   closeModal();
   addToCart({
     id: Number(v.id),
     name: v.name,
     price: Number(v.price),
-    stock: Number(v.stock),
+    stock: isService ? 999999 : Number(v.stock),
     unit: v.unit || '',
     image: v.image || '',
     icon: v.icon || '📦',
     color: v.color || '#E3DFD3',
+    is_service: isService,
   });
 }
 
 function addToCart(p){
-  if(p.stock <= 0){ toast('สินค้าหมดสต๊อก: '+p.name); return; }
+  const isService = !!p.is_service;
+  if(!isService && p.stock <= 0){ toast('สินค้าหมดสต๊อก: '+p.name); return; }
   const line = cart.find(c => c.id === p.id);
   if(line){
-    if(line.qty >= p.stock){ toast('สินค้าคงเหลือไม่พอ'); return; }
+    if(!isService && line.qty >= p.stock){ toast('สินค้าคงเหลือไม่พอ'); return; }
     line.qty++;
   } else {
-    cart.push({...p, qty:1});
+    cart.push({...p, is_service: isService, stock: isService ? 999999 : p.stock, qty:1});
   }
   renderCart();
 }
@@ -237,7 +253,7 @@ function changeQty(id, delta){
   if(!line) return;
   line.qty += delta;
   if(line.qty <= 0) cart = cart.filter(c => c.id !== id);
-  else if(line.qty > line.stock){ line.qty = line.stock; toast('เกินจำนวนคงเหลือ'); }
+  else if(!line.is_service && line.qty > line.stock){ line.qty = line.stock; toast('เกินจำนวนคงเหลือ'); }
   renderCart();
 }
 
@@ -245,7 +261,7 @@ function setQty(id, val){
   const line = cart.find(c => c.id === id);
   if(!line) return;
   let v = parseInt(val,10); if(isNaN(v)||v<1) v=1;
-  if(v > line.stock){ v = line.stock; toast('เกินจำนวนคงเหลือ'); }
+  if(!line.is_service && v > line.stock){ v = line.stock; toast('เกินจำนวนคงเหลือ'); }
   line.qty = v;
   renderCart();
 }
@@ -273,7 +289,7 @@ function renderCart(){
       <div class="citem">
         ${productThumb(c,'ci-thumb')}
         <div class="ci-info">
-          <div class="ci-nm">${c.name}</div>
+          <div class="ci-nm">${c.name}${c.is_service ? ' <span class="badge ok" style="font-size:10px;vertical-align:middle;">บริการ</span>' : ''}</div>
           <div class="ci-sub">${money(c.price)} / ${c.unit||'ชิ้น'}</div>
           <div class="ci-row">
             <div class="ci-line">${money(c.price * c.qty)}</div>
@@ -661,7 +677,17 @@ document.getElementById('scanInput').addEventListener('keydown', async e => {
   const data = await res.json();
   if(!data.ok){ toast(data.message||'ไม่พบสินค้า'); return; }
   const p = data.product;
-  addToCart({id:p.id,name:p.name,price:p.sell_price,stock:p.stock,unit:p.unit,image:p.image,icon:p.icon,color:p.color});
+  addToCart({
+    id:p.id,
+    name:p.name,
+    price:p.sell_price,
+    stock:p.is_service ? 999999 : p.stock,
+    unit:p.unit,
+    image:p.image,
+    icon:p.icon,
+    color:p.color,
+    is_service: !!p.is_service,
+  });
 });
 
 renderCart();

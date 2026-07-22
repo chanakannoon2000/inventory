@@ -5,7 +5,7 @@
 @section('content')
 <div class="panel">
     <div class="ph">
-        <h3>รายการสินค้า <span class="badge neutral">{{ $products->total() }} รายการ</span></h3>
+        <h3>สินค้า / บริการ <span class="badge neutral">{{ $products->total() }} รายการ</span></h3>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             @if(auth()->user()->canViewCost())
                 <form method="POST" action="{{ route('products.toggle-cost') }}">
@@ -17,12 +17,17 @@
             @endif
             <a class="btn btn-outline btn-sm" href="{{ route('products.export', request()->query() + ['format' => 'csv']) }}">Export CSV</a>
             <a class="btn btn-outline btn-sm" href="{{ route('products.export', request()->query() + ['format' => 'excel']) }}">Export Excel</a>
-            <button class="btn btn-primary" type="button" id="btnAddProduct">+ เพิ่มสินค้า</button>
+            <button class="btn btn-primary" type="button" id="btnAddProduct">+ เพิ่มรายการ</button>
         </div>
     </div>
     <div class="pb">
         <form class="searchbar" method="GET">
             <input name="search" value="{{ request('search') }}" placeholder="ค้นหาชื่อ/บาร์โค้ด...">
+            <select name="type">
+                <option value="">ทุกประเภท</option>
+                <option value="product" @selected(request('type')==='product')>สินค้า</option>
+                <option value="service" @selected(request('type')==='service')>บริการ</option>
+            </select>
             <select name="category_id">
                 <option value="">ทุกหมวดหมู่</option>
                 @foreach($categories as $c)
@@ -41,7 +46,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th></th><th>สินค้า</th><th>บาร์โค้ด</th><th>หมวดหมู่</th><th>หน่วย</th>
+                    <th></th><th>รายการ</th><th>บาร์โค้ด</th><th>หมวดหมู่</th><th>หน่วย</th>
                     <th>ทุน {{ $showCost ? '' : '(รหัส)' }}</th><th>ราคาขาย</th><th>คงเหลือ</th><th>Min/Max</th><th>Supplier</th><th></th>
                 </tr>
                 </thead>
@@ -52,11 +57,18 @@
                             @if($p->imageSrc())
                                 <img class="thumb" src="{{ $p->imageSrc() }}" alt="">
                             @else
-                                <div class="thumb ph-icon" style="background:{{ $p->placeholderColor() }}">{{ $p->placeholderIcon() }}</div>
+                                <div class="thumb ph-icon" style="background:{{ $p->placeholderColor() }}">{{ $p->isService() ? '🚚' : $p->placeholderIcon() }}</div>
                             @endif
                         </td>
                         <td>
                             <strong>{{ $p->name }}</strong>
+                            <div style="margin-top:3px;">
+                                @if($p->isService())
+                                    <span class="badge ok">บริการ</span>
+                                @else
+                                    <span class="badge neutral">สินค้า</span>
+                                @endif
+                            </div>
                             @if($p->productGroup)
                                 <div class="helptext" style="margin-top:2px;">
                                     กลุ่ม: {{ $p->productGroup->name }}
@@ -76,14 +88,26 @@
                         </td>
                         <td class="mono">{{ ($money)($p->sell_price) }}</td>
                         <td>
-                            <span class="mono">{{ ($fmt)($p->stock) }}</span>
-                            @php $pct = $p->max_stock > 0 ? min(100, ($p->stock / $p->max_stock) * 100) : 0; @endphp
-                            <div class="stockbar"><i style="width:{{ $pct }}%; background:{{ $p->isLowStock() ? '#C1443C' : ($p->isOverStock() ? '#CC9A1E' : '#3F8F55') }}"></i></div>
+                            @if($p->isService())
+                                <span class="helptext">ไม่ตัดสต๊อก</span>
+                            @else
+                                <span class="mono">{{ ($fmt)($p->stock) }}</span>
+                                @php $pct = $p->max_stock > 0 ? min(100, ($p->stock / $p->max_stock) * 100) : 0; @endphp
+                                <div class="stockbar"><i style="width:{{ $pct }}%; background:{{ $p->isLowStock() ? '#C1443C' : ($p->isOverStock() ? '#CC9A1E' : '#3F8F55') }}"></i></div>
+                            @endif
                         </td>
-                        <td class="mono">{{ ($fmt)($p->min_stock) }} / {{ ($fmt)($p->max_stock) }}</td>
+                        <td class="mono">
+                            @if($p->isService())
+                                —
+                            @else
+                                {{ ($fmt)($p->min_stock) }} / {{ ($fmt)($p->max_stock) }}
+                            @endif
+                        </td>
                         <td>{{ $p->supplier?->name ?? '—' }}</td>
                         <td>
-                            @if($p->isLowStock())
+                            @if($p->isService())
+                                <span class="badge ok">บริการ</span>
+                            @elseif($p->isLowStock())
                                 <span class="badge danger">ต่ำกว่า Min</span>
                             @elseif($p->isOverStock())
                                 <span class="badge warn">เกิน Max</span>
@@ -93,14 +117,14 @@
                             <br>
                             <button class="btn btn-outline btn-sm btn-edit-product" style="margin-top:5px;" type="button"
                                 data-id="{{ $p->id }}">แก้ไข</button>
-                            <form method="POST" action="{{ route('products.destroy', $p) }}" style="display:inline;" onsubmit="return confirmDelete(this, 'ยืนยันลบสินค้านี้?')">
+                            <form method="POST" action="{{ route('products.destroy', $p) }}" style="display:inline;" onsubmit="return confirmDelete(this, 'ยืนยันลบรายการนี้?')">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-danger btn-sm" type="submit">ลบ</button>
                             </form>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="11"><div class="empty">ไม่พบสินค้าตามเงื่อนไข</div></td></tr>
+                    <tr><td colspan="11"><div class="empty">ไม่พบรายการตามเงื่อนไข</div></td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -133,6 +157,7 @@
         $productMap[(string) $p->id] = [
             'id' => $p->id,
             'name' => $p->name,
+            'type' => $p->type ?: 'product',
             'product_group_id' => $p->product_group_id,
             'size_label' => $p->size_label,
             'barcode' => $p->barcode,
@@ -381,13 +406,18 @@ function openProductForm(p){
   if(p && p.image_url){
     img = (String(p.image_url).indexOf('http') === 0) ? p.image_url : ('/storage/' + p.image_url);
   }
+  var isService = p && p.type === 'service';
+  var typeProductSel = !isService ? ' selected' : '';
+  var typeServiceSel = isService ? ' selected' : '';
+  var stockRowStyle = isService ? 'display:none;' : '';
+  var groupRowStyle = isService ? 'display:none;' : '';
   var costField = window.CAN_VIEW_COST
     ? '<div class="field"><label>ราคาทุน (บาท)</label><input name="cost_price" id="f_cost" type="number" step="0.01" value="'+(p && p.cost_price != null ? p.cost_price : '')+'"></div>'
     : '<input type="hidden" name="cost_price" id="f_cost" value="'+(p && p.cost_price != null ? p.cost_price : 0)+'">';
   var barcode = escAttr(p && p.barcode ? p.barcode : '');
   var imgPreview = img
     ? '<img class="thumb" style="width:180px;height:180px;object-fit:cover;border-radius:12px;" src="'+escAttr(img)+'" alt="preview">'
-    : '<div class="thumb ph-icon" style="width:180px;height:180px;font-size:56px;background:#E3DFD3;border-radius:12px;">📦</div>';
+    : '<div class="thumb ph-icon" style="width:180px;height:180px;font-size:56px;background:#E3DFD3;border-radius:12px;">'+(isService ? '🚚' : '📦')+'</div>';
   var clearImage = p
     ? '<label style="margin-top:8px;display:flex;gap:6px;align-items:center;"><input type="checkbox" name="clear_image" value="1" style="width:auto;"> ลบรูป</label>'
     : '';
@@ -398,11 +428,11 @@ function openProductForm(p){
   var imgUrlVal = (p && p.image_url && String(p.image_url).indexOf('http') === 0) ? escAttr(p.image_url) : '';
 
   openModal(
-    '<div class="mh"><h3>'+(p ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่')+'</h3><button class="xbtn" type="button" onclick="closeModal()">✕</button></div>'+
+    '<div class="mh"><h3>'+(p ? (isService ? 'แก้ไขบริการ' : 'แก้ไขสินค้า') : 'เพิ่มสินค้า / บริการ')+'</h3><button class="xbtn" type="button" onclick="closeModal()">✕</button></div>'+
     '<form class="mb" method="POST" action="'+action+'" enctype="multipart/form-data" id="productForm">'+
       '<input type="hidden" name="_token" value="'+window.CSRF+'">'+
       methodField+
-      '<div class="field"><label>รูปภาพสินค้า</label>'+
+      '<div class="field"><label>รูปภาพ</label>'+
         '<div style="display:flex;gap:12px;align-items:flex-start;">'+
           '<div id="imgPreviewWrap">'+imgPreview+'</div>'+
           '<div style="flex:1;">'+
@@ -416,12 +446,18 @@ function openProductForm(p){
           '</div>'+
         '</div>'+
       '</div>'+
-      '<div class="field"><label>ชื่อสินค้า</label><input name="name" required value="'+escAttr(p && p.name ? p.name : '')+'" placeholder="เช่น ท่อ PVC สีฟ้า 1 นิ้ว x4ม."></div>'+
-      '<div class="row2">'+
+      '<div class="field"><label>ประเภท</label>'+
+        '<select name="type" id="f_type" onchange="onProductTypeChange()">'+
+          '<option value="product"'+typeProductSel+'>สินค้า (ตัดสต๊อก)</option>'+
+          '<option value="service"'+typeServiceSel+'>บริการ (เช่น ค่าส่ง ไม่ตัดสต๊อก)</option>'+
+        '</select>'+
+      '</div>'+
+      '<div class="field"><label>ชื่อ</label><input name="name" required value="'+escAttr(p && p.name ? p.name : '')+'" placeholder="เช่น ค่าจัดส่งสินค้า / ท่อ PVC 1 นิ้ว"></div>'+
+      '<div class="row2" id="groupFieldsRow" style="'+groupRowStyle+'">'+
         '<div class="field"><label>กลุ่มสินค้า (หลายไซส์)</label><select name="product_group_id" id="f_group">'+groupHtml+'</select></div>'+
         '<div class="field"><label>ไซส์ / ขนาด</label><input name="size_label" value="'+escAttr(p && p.size_label ? p.size_label : '')+'" placeholder="เช่น 4 หุน, 1 นิ้ว, 2 นิ้ว"></div>'+
       '</div>'+
-      '<div class="helptext" style="margin-top:-6px;margin-bottom:10px;">สร้างกลุ่มที่เมนู <strong>กลุ่มสินค้า</strong> ก่อน แล้วเลือกที่นี่ + ใส่ไซส์ — POS จะรวมเป็นการ์ดเดียวให้เลือกขนาด · <a href="'+@json(url('/product-groups'))+'" target="_blank">ไปจัดการกลุ่ม</a></div>'+
+      '<div class="helptext" id="groupHelpText" style="margin-top:-6px;margin-bottom:10px;'+groupRowStyle+'">สร้างกลุ่มที่เมนู <strong>กลุ่มสินค้า</strong> ก่อน แล้วเลือกที่นี่ + ใส่ไซส์ — POS จะรวมเป็นการ์ดเดียวให้เลือกขนาด · <a href="'+@json(url('/product-groups'))+'" target="_blank">ไปจัดการกลุ่ม</a></div>'+
       '<div class="row2">'+
         '<div class="field"><label>บาร์โค้ด</label>'+
           '<div style="display:flex;gap:6px;">'+
@@ -439,11 +475,12 @@ function openProductForm(p){
         costField+
         '<div class="field"><label>ราคาขาย (บาท)</label><input name="sell_price" type="number" step="0.01" value="'+(p && p.sell_price != null ? p.sell_price : '')+'"></div>'+
       '</div>'+
-      '<div class="row3">'+
+      '<div class="row3" id="stockFieldsRow" style="'+stockRowStyle+'">'+
         '<div class="field"><label>คงเหลือ</label><input name="stock" type="number" step="0.01" value="'+(p && p.stock != null ? p.stock : 0)+'"></div>'+
         '<div class="field"><label>Min</label><input name="min_stock" type="number" step="0.01" value="'+(p && p.min_stock != null ? p.min_stock : 5)+'"></div>'+
         '<div class="field"><label>Max</label><input name="max_stock" type="number" step="0.01" value="'+(p && p.max_stock != null ? p.max_stock : 100)+'"></div>'+
       '</div>'+
+      '<div class="helptext" id="serviceStockHint" style="'+(isService ? '' : 'display:none;')+'margin-bottom:10px;">บริการไม่ตัดสต๊อก — ใส่ในบิลขายคู่กับสินค้าได้เลย (เช่น ค่าส่ง)</div>'+
       cipherHelp+
       '<div id="barcodePreviewWrap" class="barcode-preview-wrap" style="display:none;margin-top:14px;">'+
         '<div class="helptext" style="margin-bottom:8px;">ตัวอย่างบาร์โค้ด</div>'+
@@ -554,8 +591,26 @@ window.handleImageSelect = handleImageSelect;
 window.handleImageUrlInput = handleImageUrlInput;
 window.refreshBarcode = refreshBarcode;
 window.onCategoryChange = onCategoryChange;
+window.onProductTypeChange = onProductTypeChange;
 window.renderProductBarcode = renderProductBarcode;
 window.downloadProductBarcode = downloadProductBarcode;
+
+function onProductTypeChange(){
+  var typeEl = document.getElementById('f_type');
+  var isService = typeEl && typeEl.value === 'service';
+  var stockRow = document.getElementById('stockFieldsRow');
+  var groupRow = document.getElementById('groupFieldsRow');
+  var groupHelp = document.getElementById('groupHelpText');
+  var hint = document.getElementById('serviceStockHint');
+  if(stockRow) stockRow.style.display = isService ? 'none' : '';
+  if(groupRow) groupRow.style.display = isService ? 'none' : '';
+  if(groupHelp) groupHelp.style.display = isService ? 'none' : '';
+  if(hint) hint.style.display = isService ? '' : 'none';
+  if(isService){
+    var group = document.getElementById('f_group');
+    if(group) group.value = '';
+  }
+}
 
 (function bindProductButtons(){
   var addBtn = document.getElementById('btnAddProduct');

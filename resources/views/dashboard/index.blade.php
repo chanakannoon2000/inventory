@@ -55,22 +55,66 @@
             <div class="val">{{ ($money)($periodRevenue) }}</div>
             <div class="sub">{{ $periodSales->count() }} บิล · {{ $periodLabel }}</div>
         </div>
-        <div class="card ok">
-            <div class="lbl">{{ ($canViewCost ?? false) ? 'กำไรขั้นต้น' : 'จำนวนบิล' }}</div>
-            <div class="val">{{ ($canViewCost ?? false) ? ($money)($grossProfit) : $periodSales->count() }}</div>
-            <div class="sub">{{ ($canViewCost ?? false) ? 'จากต้นทุนขาย '.($money)($periodCost) : 'ยอดขาย '.($money)($periodRevenue) }}</div>
-        </div>
-        <div class="card blue">
-            <div class="lbl">รายการสินค้าทั้งหมด</div>
-            <div class="val">{{ $productCount }}</div>
-            <div class="sub">ระบบคลังวัสดุก่อสร้าง</div>
-        </div>
-        <div class="card warn">
-            <div class="lbl">สินค้าต่ำกว่าขั้นต่ำ</div>
-            <div class="val">{{ $lowStock->count() }}</div>
-            <div class="sub">{{ $overStockCount }} รายการเกิน Max</div>
-        </div>
+
+        @if($canViewCost ?? false)
+            <div class="card blue">
+                <div class="lbl">ต้นทุนขาย</div>
+                <div class="val">{{ ($money)($periodCost) }}</div>
+                <div class="sub">จากราคาทุนในบิลขาย</div>
+            </div>
+            <div class="card ok">
+                <div class="lbl">กำไรขั้นต้น</div>
+                <div class="val {{ $grossProfit < 0 ? 'neg' : '' }}">{{ ($money)($grossProfit) }}</div>
+                <div class="sub">ยอดขาย − ต้นทุนขาย{{ $periodRevenue > 0 ? ' · '.number_format($grossProfit / $periodRevenue * 100, 1).'%' : '' }}</div>
+            </div>
+            <div class="card warn">
+                <div class="lbl">เบิกรายจ่าย</div>
+                <div class="val">{{ ($money)($periodExpenses ?? 0) }}</div>
+                <div class="sub"><a href="{{ route('expenses.index') }}" style="color:inherit;">ดูรายการเบิก →</a></div>
+            </div>
+            <div class="card {{ ($netAfterExpenses ?? 0) >= 0 ? 'ok' : 'warn' }}">
+                <div class="lbl">กำไรสุทธิ</div>
+                <div class="val {{ ($netAfterExpenses ?? 0) < 0 ? 'neg' : '' }}">{{ ($money)($netAfterExpenses ?? $grossProfit) }}</div>
+                <div class="sub">กำไรขั้นต้น − รายจ่ายร้าน</div>
+            </div>
+        @else
+            <div class="card blue">
+                <div class="lbl">จำนวนบิล</div>
+                <div class="val">{{ $periodSales->count() }}</div>
+                <div class="sub">ยอดขาย {{ ($money)($periodRevenue) }}</div>
+            </div>
+            <div class="card warn">
+                <div class="lbl">เบิกรายจ่าย</div>
+                <div class="val">{{ ($money)($periodExpenses ?? 0) }}</div>
+                <div class="sub"><a href="{{ route('expenses.index') }}" style="color:inherit;">ดูรายการเบิก →</a></div>
+            </div>
+            <div class="card">
+                <div class="lbl">รายการสินค้าทั้งหมด</div>
+                <div class="val">{{ $productCount }}</div>
+                <div class="sub">ระบบคลังวัสดุก่อสร้าง</div>
+            </div>
+            <div class="card warn">
+                <div class="lbl">สินค้าต่ำกว่าขั้นต่ำ</div>
+                <div class="val">{{ $lowStock->count() }}</div>
+                <div class="sub">{{ $overStockCount }} รายการเกิน Max</div>
+            </div>
+        @endif
     </div>
+
+    @if($canViewCost ?? false)
+        <div class="cards" style="margin-top:10px;">
+            <div class="card">
+                <div class="lbl">รายการสินค้าทั้งหมด</div>
+                <div class="val" style="font-size:22px;">{{ $productCount }}</div>
+                <div class="sub">ระบบคลังวัสดุก่อสร้าง</div>
+            </div>
+            <div class="card warn">
+                <div class="lbl">สินค้าต่ำกว่าขั้นต่ำ</div>
+                <div class="val" style="font-size:22px;">{{ $lowStock->count() }}</div>
+                <div class="sub">{{ $overStockCount }} รายการเกิน Max</div>
+            </div>
+        </div>
+    @endif
 
     <div class="grid dash-grid" style="grid-template-columns:1.4fr 1fr;">
         <div class="panel">

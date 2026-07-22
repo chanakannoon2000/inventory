@@ -72,7 +72,7 @@ class PosController extends Controller
 
         foreach ($grouped as $groupId => $items) {
             $sorted = $items->sortBy(fn (Product $p) => $p->sizeSortValue())->values();
-            $inStock = $sorted->filter(fn (Product $p) => (float) $p->stock > 0);
+            $inStock = $sorted->filter(fn (Product $p) => $p->isService() || (float) $p->stock > 0);
             $first = $sorted->first(fn (Product $p) => $p->imageSrc()) ?: $sorted->first();
             $groupModel = $first?->productGroup;
             $groupName = $groupModel?->name ?: ('กลุ่ม #'.$groupId);
@@ -110,6 +110,8 @@ class PosController extends Controller
                     'icon' => $p->placeholderIcon(),
                     'color' => $p->placeholderColor(),
                     'low' => $p->isLowStock(),
+                    'item_type' => $p->type ?: Product::TYPE_PRODUCT,
+                    'is_service' => $p->isService(),
                 ])->values()->all(),
             ]);
         }
@@ -156,6 +158,8 @@ class PosController extends Controller
                 'icon' => $product->placeholderIcon(),
                 'color' => $product->placeholderColor(),
                 'is_low' => $product->isLowStock(),
+                'item_type' => $product->type ?: Product::TYPE_PRODUCT,
+                'is_service' => $product->isService(),
             ],
         ]);
     }
@@ -196,7 +200,7 @@ class PosController extends Controller
                     $product = Product::lockForUpdate()->findOrFail($item['product_id']);
                     $qty = (float) $item['qty'];
 
-                    if ($qty > (float) $product->stock) {
+                    if ($product->tracksStock() && $qty > (float) $product->stock) {
                         throw new \RuntimeException('สต๊อกไม่พอ: '.$product->name);
                     }
 
@@ -250,15 +254,17 @@ class PosController extends Controller
                         'cost_price' => $product->cost_price,
                     ]);
 
-                    $product->decrement('stock', $qty);
+                    if ($product->tracksStock()) {
+                        $product->decrement('stock', $qty);
 
-                    StockMovement::create([
-                        'product_id' => $product->id,
-                        'type' => 'OUT',
-                        'qty' => $qty,
-                        'ref_sale_id' => $sale->id,
-                        'note' => 'ขายหน้าร้าน '.$sale->receipt_no,
-                    ]);
+                        StockMovement::create([
+                            'product_id' => $product->id,
+                            'type' => 'OUT',
+                            'qty' => $qty,
+                            'ref_sale_id' => $sale->id,
+                            'note' => 'ขายหน้าร้าน '.$sale->receipt_no,
+                        ]);
+                    }
                 }
 
                 return $sale->load('items');

@@ -8,8 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
+    public const TYPE_PRODUCT = 'product';
+
+    public const TYPE_SERVICE = 'service';
+
     protected $fillable = [
         'name',
+        'type',
         'product_group_id',
         'size_label',
         'barcode',
@@ -72,24 +77,57 @@ class Product extends Model
         });
     }
 
+    public function scopeGoods($query)
+    {
+        return $query->where('type', self::TYPE_PRODUCT);
+    }
+
+    public function scopeServices($query)
+    {
+        return $query->where('type', self::TYPE_SERVICE);
+    }
+
     public function scopeLowStock($query)
     {
-        return $query->whereColumn('stock', '<=', 'min_stock');
+        return $query->goods()->whereColumn('stock', '<=', 'min_stock');
     }
 
     public function scopeOverStock($query)
     {
-        return $query->whereColumn('stock', '>=', 'max_stock');
+        return $query->goods()->whereColumn('stock', '>=', 'max_stock');
+    }
+
+    public function isService(): bool
+    {
+        return ($this->type ?: self::TYPE_PRODUCT) === self::TYPE_SERVICE;
+    }
+
+    public function tracksStock(): bool
+    {
+        return ! $this->isService();
     }
 
     public function isLowStock(): bool
     {
+        if (! $this->tracksStock()) {
+            return false;
+        }
+
         return (float) $this->stock <= (float) $this->min_stock;
     }
 
     public function isOverStock(): bool
     {
+        if (! $this->tracksStock()) {
+            return false;
+        }
+
         return (float) $this->stock >= (float) $this->max_stock;
+    }
+
+    public function typeLabel(): string
+    {
+        return $this->isService() ? 'บริการ' : 'สินค้า';
     }
 
     public function displayName(): string

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Carbon\Carbon;
@@ -38,6 +39,11 @@ class ReportController extends Controller
                 ->sum(fn (Sale $s) => $s->costTotal());
         }
         $profit = $totalRev - $totalCost;
+        $totalExpenses = (float) Expense::query()
+            ->whereDate('spent_at', '>=', $from)
+            ->whereDate('spent_at', '<=', $to)
+            ->sum('amount');
+        $netAfterExpenses = $profit - $totalExpenses;
 
         $sales = Sale::with('items')
             ->whereDate('sold_at', '>=', $from)
@@ -70,6 +76,8 @@ class ReportController extends Controller
             'totalRev',
             'totalCost',
             'profit',
+            'totalExpenses',
+            'netAfterExpenses',
             'catRev',
             'cancelledCount',
             'canViewCost'

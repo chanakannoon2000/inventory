@@ -43,7 +43,19 @@
             <div class="card ok">
                 <div class="lbl">กำไรขั้นต้น</div>
                 <div class="val">{{ ($money)($profit) }}</div>
-                <div class="sub">{{ $totalRev ? number_format($profit / $totalRev * 100, 1) : 0 }}% margin</div>
+                <div class="sub">{{ $totalRev ? number_format($profit / $totalRev * 100, 1) : 0 }}% margin · ยอดขาย − ต้นทุน</div>
+            </div>
+        @endif
+        <div class="card warn">
+            <div class="lbl">เบิกรายจ่าย</div>
+            <div class="val">{{ ($money)($totalExpenses ?? 0) }}</div>
+            <div class="sub"><a class="no-print" href="{{ route('expenses.index', ['from'=>$from,'to'=>$to]) }}" style="color:inherit;">ดูรายจ่าย →</a></div>
+        </div>
+        @if($canViewCost ?? false)
+            <div class="card {{ ($netAfterExpenses ?? 0) >= 0 ? 'ok' : 'warn' }}">
+                <div class="lbl">กำไรสุทธิ</div>
+                <div class="val">{{ ($money)($netAfterExpenses ?? $profit) }}</div>
+                <div class="sub">กำไรขั้นต้น − รายจ่ายร้าน</div>
             </div>
         @endif
     </div>

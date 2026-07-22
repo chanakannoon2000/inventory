@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -59,6 +60,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
     Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
+
+    Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+    Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+    Route::put('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
+    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');

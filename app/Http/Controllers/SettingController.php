@@ -92,14 +92,18 @@ class SettingController extends Controller
     {
         $data = $request->validate([
             'line_enabled' => 'nullable|boolean',
-            'line_channel_token' => 'nullable|string|max:500',
+            'line_channel_token' => 'nullable|string|max:2000',
             'line_target_id' => 'nullable|string|max:64',
         ]);
 
+        $token = isset($data['line_channel_token'])
+            ? preg_replace('/\s+/', '', trim((string) $data['line_channel_token']))
+            : null;
+
         Setting::current()->update([
             'line_enabled' => $request->boolean('line_enabled'),
-            'line_channel_token' => $data['line_channel_token'] ?? null,
-            'line_target_id' => $data['line_target_id'] ?? null,
+            'line_channel_token' => $token ?: null,
+            'line_target_id' => isset($data['line_target_id']) ? trim((string) $data['line_target_id']) ?: null : null,
         ]);
 
         return back()->with('success', 'บันทึกการแจ้งเตือน LINE แล้ว');

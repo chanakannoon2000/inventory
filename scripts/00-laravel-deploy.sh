@@ -8,6 +8,22 @@ if [ -n "${DATABASE_URL:-}" ] && [ -z "${DB_URL:-}" ]; then
   export DB_URL="$DATABASE_URL"
 fi
 
+# Neon/some hosts use postgres:// — Laravel prefers postgresql://
+if [ -n "${DB_URL:-}" ]; then
+  export DB_URL="${DB_URL/postgres:\/\//postgresql:\/\/}"
+  # Ensure SSL for Neon / managed Postgres
+  case "$DB_URL" in
+    *sslmode=*) ;;
+    *)
+      if [[ "$DB_URL" == *"?"* ]]; then
+        export DB_URL="${DB_URL}&sslmode=require"
+      else
+        export DB_URL="${DB_URL}?sslmode=require"
+      fi
+      ;;
+  esac
+fi
+
 echo "Running composer..."
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --working-dir=/var/www/html
 

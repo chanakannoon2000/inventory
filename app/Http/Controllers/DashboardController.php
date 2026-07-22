@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -28,6 +29,10 @@ class DashboardController extends Controller
         $periodRevenue = (float) $periodSales->sum('total');
         $periodCost = (float) $periodSales->sum(fn ($s) => $s->costTotal());
         $grossProfit = $periodRevenue - $periodCost;
+        $periodExpenses = (float) Expense::query()
+            ->whereBetween('spent_at', [$from, $to])
+            ->sum('amount');
+        $netAfterExpenses = $grossProfit - $periodExpenses;
 
         $productCount = Product::count();
         $lowStock = Product::with(['unit', 'supplier'])->lowStock()->orderBy('stock')->get();
@@ -55,6 +60,8 @@ class DashboardController extends Controller
             'periodRevenue' => $periodRevenue,
             'periodCost' => $periodCost,
             'grossProfit' => $grossProfit,
+            'periodExpenses' => $periodExpenses,
+            'netAfterExpenses' => $netAfterExpenses,
             'periodSales' => $periodSales,
             'productCount' => $productCount,
             'lowStock' => $lowStock,

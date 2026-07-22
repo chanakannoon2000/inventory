@@ -29,9 +29,10 @@
             <div class="grp-label">ภาพรวม</div>
             <a class="navbtn {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="แดชบอร์ด"><span class="ic">▣</span><span class="nav-text">แดชบอร์ด</span></a>
             <a class="navbtn {{ request()->routeIs('pos.*') ? 'active' : '' }}" href="{{ route('pos.index') }}" title="ขายหน้าร้าน (POS)"><span class="ic">฿</span><span class="nav-text">ขายหน้าร้าน (POS)</span></a>
+            <a class="navbtn {{ request()->routeIs('expenses.*') ? 'active' : '' }}" href="{{ route('expenses.index') }}" title="เบิกรายจ่าย"><span class="ic">🧾</span><span class="nav-text">เบิกรายจ่าย</span></a>
 
             <div class="grp-label">คลังสินค้า</div>
-            <a class="navbtn {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}" title="สินค้า"><span class="ic">📦</span><span class="nav-text">สินค้า</span></a>
+            <a class="navbtn {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}" title="สินค้า / บริการ"><span class="ic">📦</span><span class="nav-text">สินค้า/บริการ</span></a>
             <a class="navbtn {{ request()->routeIs('product-groups.*') ? 'active' : '' }}" href="{{ route('product-groups.index') }}" title="กลุ่มสินค้า"><span class="ic">🧩</span><span class="nav-text">กลุ่มสินค้า</span></a>
             <a class="navbtn {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}" title="หมวดหมู่สินค้า"><span class="ic">📁</span><span class="nav-text">หมวดหมู่สินค้า</span></a>
             <a class="navbtn {{ request()->routeIs('units.*') ? 'active' : '' }}" href="{{ route('units.index') }}" title="หน่วยนับ"><span class="ic">📐</span><span class="nav-text">หน่วยนับ</span></a>

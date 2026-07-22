@@ -68,6 +68,12 @@ class ProductController extends Controller
             $query->where('category_id', $request->category_id);
         }
 
+        if ($request->type === 'service') {
+            $query->services();
+        } elseif ($request->type === 'product') {
+            $query->goods();
+        }
+
         if ($request->stock === 'low') {
             $query->lowStock();
         } elseif ($request->stock === 'over') {
@@ -79,11 +85,11 @@ class ProductController extends Controller
 
     private function exportHeaders(bool $showCost): array
     {
-        $headers = ['ชื่อสินค้า', 'บาร์โค้ด', 'หมวดหมู่', 'หน่วย', 'ราคาขาย', 'คงเหลือ', 'Min', 'Max', 'ผู้จำหน่าย', 'สถานะสต๊อก'];
+        $headers = ['ประเภท', 'ชื่อสินค้า', 'บาร์โค้ด', 'หมวดหมู่', 'หน่วย', 'ราคาขาย', 'คงเหลือ', 'Min', 'Max', 'ผู้จำหน่าย', 'สถานะสต๊อก'];
         if ($showCost) {
-            array_splice($headers, 4, 0, ['ราคาทุน', 'รหัสทุน']);
+            array_splice($headers, 5, 0, ['ราคาทุน', 'รหัสทุน']);
         } else {
-            array_splice($headers, 4, 0, ['รหัสทุน']);
+            array_splice($headers, 5, 0, ['รหัสทุน']);
         }
 
         return $headers;
@@ -91,8 +97,11 @@ class ProductController extends Controller
 
     private function exportRow(Product $p, bool $showCost): array
     {
-        $status = $p->isLowStock() ? 'ต่ำกว่า Min' : ($p->isOverStock() ? 'เกิน Max' : 'ปกติ');
+        $status = $p->isService()
+            ? 'บริการ'
+            : ($p->isLowStock() ? 'ต่ำกว่า Min' : ($p->isOverStock() ? 'เกิน Max' : 'ปกติ'));
         $row = [
+            $p->typeLabel(),
             $p->name,
             $p->barcode,
             $p->category?->name,
@@ -206,7 +215,7 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
-        if ((float) $product->stock > 0) {
+        if ($product->tracksStock() && (float) $product->stock > 0) {
             StockMovement::create([
                 'product_id' => $product->id,
                 'type' => 'IN',
@@ -216,10 +225,10 @@ class ProductController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'message' => 'เพิ่มสินค้าสำเร็จ']);
+            return response()->json(['ok' => true, 'message' => ($product->isService() ? 'เพิ่มบริการสำเร็จ' : 'เพิ่มสินค้าสำเร็จ')]);
         }
 
-        return redirect()->route('products.index')->with('success', 'เพิ่มสินค้าสำเร็จ');
+        return redirect()->route('products.index')->with('success', $product->isService() ? 'เพิ่มบริการสำเร็จ' : 'เพิ่มสินค้าสำเร็จ');
     }
 
     public function update(Request $request, Product $product)
@@ -243,7 +252,7 @@ class ProductController extends Controller
         $product->update($data);
         $newStock = (float) $product->stock;
 
-        if ($oldStock !== $newStock) {
+        if ($product->tracksStock() && $oldStock !== $newStock) {
             StockMovement::create([
                 'product_id' => $product->id,
                 'type' => 'ADJUST',
@@ -253,10 +262,10 @@ class ProductController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'message' => 'แก้ไขสินค้าสำเร็จ']);
+            return response()->json(['ok' => true, 'message' => ($product->isService() ? 'แก้ไขบริการสำเร็จ' : 'แก้ไขสินค้าสำเร็จ')]);
         }
 
-        return redirect()->route('products.index')->with('success', 'แก้ไขสินค้าสำเร็จ');
+        return redirect()->route('products.index')->with('success', $product->isService() ? 'แก้ไขบริการสำเร็จ' : 'แก้ไขสินค้าสำเร็จ');
     }
 
     public function destroy(Product $product)
@@ -287,12 +296,24 @@ class ProductController extends Controller
     {
         unset($data['image'], $data['image_url_link'], $data['clear_image']);
 
+        $data['type'] = ($data['type'] ?? Product::TYPE_PRODUCT) === Product::TYPE_SERVICE
+            ? Product::TYPE_SERVICE
+            : Product::TYPE_PRODUCT;
         $data['cost_price'] = (float) ($data['cost_price'] ?? 0);
         $data['sell_price'] = (float) ($data['sell_price'] ?? 0);
-        $data['stock'] = (float) ($data['stock'] ?? 0);
-        $data['min_stock'] = (float) ($data['min_stock'] ?? 0);
-        $data['max_stock'] = (float) ($data['max_stock'] ?? 100);
-        $data['size_label'] = isset($data['size_label']) ? trim((string) $data['size_label']) ?: null : null;
+
+        if ($data['type'] === Product::TYPE_SERVICE) {
+            $data['stock'] = 0;
+            $data['min_stock'] = 0;
+            $data['max_stock'] = 0;
+            $data['product_group_id'] = null;
+            $data['size_label'] = null;
+        } else {
+            $data['stock'] = (float) ($data['stock'] ?? 0);
+            $data['min_stock'] = (float) ($data['min_stock'] ?? 0);
+            $data['max_stock'] = (float) ($data['max_stock'] ?? 100);
+            $data['size_label'] = isset($data['size_label']) ? trim((string) $data['size_label']) ?: null : null;
+        }
 
         return $data;
     }
@@ -314,12 +335,17 @@ class ProductController extends Controller
             }
         }
 
+        if (! $request->filled('type')) {
+            $request->merge(['type' => Product::TYPE_PRODUCT]);
+        }
+
         $barcodeRule = $id
             ? 'nullable|string|max:255|unique:products,barcode,'.$id
             : 'nullable|string|max:255|unique:products,barcode';
 
         return $request->validate([
             'name' => 'required|string|max:255',
+            'type' => 'required|in:product,service',
             'product_group_id' => 'nullable|exists:product_groups,id',
             'size_label' => 'nullable|string|max:50',
             'barcode' => $barcodeRule,
@@ -340,9 +366,10 @@ class ProductController extends Controller
             'image.mimes' => 'รองรับเฉพาะไฟล์ JPG, PNG, GIF, WEBP',
             'image.max' => 'ขนาดรูปต้องไม่เกิน 8MB',
             'image_url_link.url' => 'ลิงก์รูปภาพไม่ถูกต้อง',
-            'name.required' => 'กรุณากรอกชื่อสินค้า',
+            'name.required' => 'กรุณากรอกชื่อสินค้า/บริการ',
             'barcode.unique' => 'บาร์โค้ดนี้มีอยู่แล้ว',
             'product_group_id.exists' => 'ไม่พบกลุ่มสินค้าที่เลือก',
+            'type.in' => 'ประเภทต้องเป็นสินค้าหรือบริการ',
         ]);
     }
 

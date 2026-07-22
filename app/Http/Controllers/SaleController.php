@@ -141,7 +141,7 @@ class SaleController extends Controller
         }
 
         $product = Product::lockForUpdate()->find($item->product_id);
-        if (! $product) {
+        if (! $product || ! $product->tracksStock()) {
             return;
         }
 
