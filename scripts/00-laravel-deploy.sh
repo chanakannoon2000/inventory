@@ -11,7 +11,6 @@ fi
 # Neon/some hosts use postgres:// — Laravel prefers postgresql://
 if [ -n "${DB_URL:-}" ]; then
   export DB_URL="${DB_URL/postgres:\/\//postgresql:\/\/}"
-  # Ensure SSL for Neon / managed Postgres
   case "$DB_URL" in
     *sslmode=*) ;;
     *)
@@ -24,8 +23,10 @@ if [ -n "${DB_URL:-}" ]; then
   esac
 fi
 
-echo "Running composer..."
-composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --working-dir=/var/www/html
+if [ -z "${APP_KEY:-}" ]; then
+  echo "APP_KEY missing — generating temporary key"
+  export APP_KEY="$(php artisan key:generate --show)"
+fi
 
 echo "Ensuring storage dirs..."
 mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
@@ -38,17 +39,17 @@ echo "Caching config..."
 php artisan config:cache
 
 echo "Caching routes..."
-php artisan route:cache
+php artisan route:cache || true
 
 echo "Caching views..."
-php artisan view:cache
+php artisan view:cache || true
 
 echo "Running migrations..."
 php artisan migrate --force
 
 if [ "${RUN_SEED:-false}" = "true" ]; then
   echo "Seeding database..."
-  php artisan db:seed --force
+  php artisan db:seed --force || true
 fi
 
 echo "Deploy script finished."
