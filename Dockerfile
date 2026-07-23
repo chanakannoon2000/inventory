@@ -1,26 +1,47 @@
-FROM richarvey/nginx-php-fpm:3.1.6
+FROM composer:2 AS vendor
+
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts
+
+COPY . .
+RUN composer dump-autoload --optimize --no-dev
+
+
+FROM php:8.4-fpm-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        nginx \
+        git \
+        unzip \
+        libpq-dev \
+        libpng-dev \
+        libjpeg62-turbo-dev \
+        libfreetype6-dev \
+        libzip-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo_pgsql gd bcmath zip opcache \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
 
-COPY . .
+COPY --from=vendor /app /var/www/html
+COPY conf/nginx/nginx-site.conf /etc/nginx/sites-available/default
+COPY scripts/render-start.sh /usr/local/bin/render-start.sh
 
-# Install PHP deps at build time (avoid long start = Render healthcheck fail)
-ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction \
-    && chmod +x /var/www/html/scripts/*.sh || true \
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default \
     && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
-    && chmod -R ug+rwx storage bootstrap/cache
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R ug+rwx storage bootstrap/cache \
+    && chmod +x /usr/local/bin/render-start.sh \
+    && php -r "file_exists('public/storage') || symlink('../storage/app/public', 'public/storage');"
 
-# Image config
-ENV SKIP_COMPOSER=1
-ENV WEBROOT=/var/www/html/public
-ENV PHP_ERRORS_STDERR=1
-ENV RUN_SCRIPTS=1
-ENV REAL_IP_HEADER=1
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    LOG_CHANNEL=stderr \
+    PHP_FPM_LISTEN=/var/run/php-fpm.sock
 
-# Laravel defaults (override in Render dashboard)
-ENV APP_ENV=production
-ENV APP_DEBUG=false
-ENV LOG_CHANNEL=stderr
+EXPOSE 10000
 
-CMD ["/start.sh"]
+CMD ["/usr/local/bin/render-start.sh"]
