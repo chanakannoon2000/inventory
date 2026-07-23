@@ -7,7 +7,7 @@ services:
     name: inventory-pos
     runtime: docker
     plan: free
-    healthCheckPath: /up
+    healthCheckPath: /healthz
     envVars:
       - key: APP_NAME
         value: Inventory POS
