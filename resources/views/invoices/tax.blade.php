@@ -90,7 +90,8 @@
             $net = $parts['net'];
             $vat = $parts['vat'];
         }
-        $payLabel = $sale->payment_method === 'promptpay' ? 'พร้อมเพย์' : 'เงินสด';
+        $payLabels = ['cash' => 'เงินสด', 'promptpay' => 'พร้อมเพย์', 'bank' => 'โอนธนาคาร'];
+        $payLabel = $payLabels[$sale->payment_method] ?? $sale->payment_method;
     @endphp
 
     <div class="invoice" id="invoicePrint">

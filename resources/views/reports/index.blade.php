@@ -132,7 +132,11 @@
 @push('scripts')
 <script>
 const SALE_SHOW_URL = @json(url('/sales'));
-const moneyJs = n => '฿' + Number(n||0).toLocaleString('th-TH', {maximumFractionDigits:0});
+const moneyJs = n => {
+  const v = Number(n||0);
+  const hasCents = Math.abs(v - Math.round(v)) > 0.001;
+  return '฿' + v.toLocaleString('th-TH', {minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2});
+};
 
 async function cancelSale(id, receiptNo){
   const result = await Swal.fire({

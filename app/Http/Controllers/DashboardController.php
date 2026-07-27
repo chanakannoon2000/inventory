@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ class DashboardController extends Controller
             'chartTitle' => $chartTitle,
             'topProducts' => $topProducts,
             'canViewCost' => auth()->user()?->canViewCost(),
+            'shopName' => Setting::current()->shop_name,
         ]);
     }
 

@@ -27,8 +27,11 @@ services:
         value: database
       - key: FILESYSTEM_DISK
         value: public
+      # ตั้งเป็น "true" เฉพาะตอน deploy ครั้งแรกเพื่อสร้างข้อมูลตั้งต้น
+      # หลัง deploy สำเร็จแล้วต้องตั้งกลับเป็น "false" ไม่งั้นทุกครั้งที่ deploy ใหม่
+      # ตัวเลข stock ของสินค้าตัวอย่าง (barcode ซ้ำ) จะถูกเซ็ตทับกลับไปเป็นค่าเริ่มต้นจาก seeder
       - key: RUN_SEED
-        value: "true"
+        value: "false"
       - key: APP_KEY
         sync: false
       - key: APP_URL

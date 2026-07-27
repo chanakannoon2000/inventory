@@ -33,11 +33,19 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::share('money', function ($n) {
-            return '฿'.number_format((float) $n, 0, '.', ',');
+            $n = (float) $n;
+            // แสดงทศนิยมเฉพาะตอนมีเศษสตางค์ ป้องกันราคาที่มีจุดทศนิยม (เช่น 3.50) ปัดเป็นจำนวนเต็มจนตัวเลขคลาดเคลื่อน
+            $decimals = abs($n - round($n)) > 0.001 ? 2 : 0;
+
+            return '฿'.number_format($n, $decimals, '.', ',');
         });
 
         View::share('fmt', function ($n) {
-            return number_format((float) $n, 0, '.', ',');
+            $n = (float) $n;
+            // แสดงทศนิยมเฉพาะตอนมีเศษ ป้องกันจำนวน/สต๊อกที่มีเศษ (เช่น 7.5) ถูกปัดจนตัวเลขคลาดเคลื่อน
+            $decimals = abs($n - round($n)) > 0.001 ? 2 : 0;
+
+            return number_format($n, $decimals, '.', ',');
         });
 
         View::share('costCode', function ($cost) {

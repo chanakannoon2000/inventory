@@ -507,7 +507,7 @@ function openCheckout(){
     </div>
     <div class="mf">
       <button class="btn btn-outline" type="button" onclick="closeModal()">ยกเลิก</button>
-      <button class="btn btn-primary" type="button" onclick="finalizeSale(${total})">ยืนยันการชำระเงิน</button>
+      <button class="btn btn-primary" type="button" id="btnConfirmPay" onclick="finalizeSale(${total})">ยืนยันการชำระเงิน</button>
     </div>`);
 }
 
@@ -532,7 +532,11 @@ function updateChange(total){
   }
 }
 
+let checkoutInProgress = false;
+
 async function finalizeSale(total){
+  if(checkoutInProgress) return; // กันกดซ้ำ/แตะซ้ำเร็วๆ จนยิงออเดอร์ซ้ำ
+
   let paid = total;
   if(payMethod === 'cash'){
     paid = parseFloat(document.getElementById('paidInput').value)||0;
@@ -558,29 +562,51 @@ async function finalizeSale(total){
     return;
   }
 
+  if(!cart.length){ toast('ยังไม่มีสินค้าในรายการ'); return; }
+
   const acc = getSelectedAccount();
   const method = payMethod === 'cash' ? 'cash' : (acc?.type === 'bank' ? 'bank' : 'promptpay');
+  const btn = document.getElementById('btnConfirmPay');
 
-  const res = await fetch(CHECKOUT_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.CSRF,'Accept':'application/json'},
-    body: JSON.stringify({
-      paid,
-      payment_method: method,
-      payment_account_id: acc?.id || null,
-      customer_name: document.getElementById('custName')?.value || null,
-      customer_tax_id: document.getElementById('custTaxId')?.value || null,
-      customer_address: document.getElementById('custAddress')?.value || null,
-      customer_phone: document.getElementById('custPhone')?.value || null,
-      items: cart.map(c => ({product_id:c.id, qty:c.qty}))
-    })
-  });
-  const data = await res.json();
-  if(!data.ok){ toast(data.message||'ชำระเงินไม่สำเร็จ'); return; }
+  checkoutInProgress = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
 
-  cart = [];
-  renderCart();
-  showReceipt(data.sale);
+  try {
+    const res = await fetch(CHECKOUT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.CSRF,'Accept':'application/json'},
+      body: JSON.stringify({
+        paid,
+        payment_method: method,
+        payment_account_id: acc?.id || null,
+        customer_name: document.getElementById('custName')?.value || null,
+        customer_tax_id: document.getElementById('custTaxId')?.value || null,
+        customer_address: document.getElementById('custAddress')?.value || null,
+        customer_phone: document.getElementById('custPhone')?.value || null,
+        items: cart.map(c => ({product_id:c.id, qty:c.qty}))
+      })
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      toast(res.status === 419 ? 'เซสชันหมดอายุ กรุณารีเฟรชหน้าแล้วลองใหม่' : 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาตรวจสอบรายการขายก่อนลองใหม่');
+      return;
+    }
+
+    if(!data.ok){ toast(data.message||'ชำระเงินไม่สำเร็จ'); return; }
+
+    cart = [];
+    renderCart();
+    showReceipt(data.sale);
+  } catch (err){
+    toast('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    console.error(err);
+  } finally {
+    checkoutInProgress = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'ยืนยันการชำระเงิน'; }
+  }
 }
 
 function showReceipt(sale){
@@ -669,25 +695,30 @@ document.getElementById('scanInput').addEventListener('keydown', async e => {
   const code = e.target.value.trim();
   e.target.value = '';
   if(!code) return;
-  const res = await fetch(BARCODE_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.CSRF,'Accept':'application/json'},
-    body: JSON.stringify({barcode: code})
-  });
-  const data = await res.json();
-  if(!data.ok){ toast(data.message||'ไม่พบสินค้า'); return; }
-  const p = data.product;
-  addToCart({
-    id:p.id,
-    name:p.name,
-    price:p.sell_price,
-    stock:p.is_service ? 999999 : p.stock,
-    unit:p.unit,
-    image:p.image,
-    icon:p.icon,
-    color:p.color,
-    is_service: !!p.is_service,
-  });
+  try {
+    const res = await fetch(BARCODE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.CSRF,'Accept':'application/json'},
+      body: JSON.stringify({barcode: code})
+    });
+    const data = await res.json();
+    if(!data.ok){ toast(data.message||'ไม่พบสินค้า'); return; }
+    const p = data.product;
+    addToCart({
+      id:p.id,
+      name:p.name,
+      price:p.sell_price,
+      stock:p.is_service ? 999999 : p.stock,
+      unit:p.unit,
+      image:p.image,
+      icon:p.icon,
+      color:p.color,
+      is_service: !!p.is_service,
+    });
+  } catch (err) {
+    toast('ค้นหาบาร์โค้ดไม่สำเร็จ กรุณาลองใหม่');
+    console.error(err);
+  }
 });
 
 renderCart();

@@ -118,9 +118,13 @@ class SettingController extends Controller
 
     public function exportJson(): StreamedResponse
     {
+        $settings = Setting::current()->toArray();
+        // ไม่ส่งข้อมูลลับ (โทเคน LINE / รหัสลับต้นทุน) ออกไปในไฟล์แบ็กอัพ
+        unset($settings['line_channel_token'], $settings['cipher_key']);
+
         $payload = [
             'exported_at' => now()->toIso8601String(),
-            'settings' => Setting::current()->toArray(),
+            'settings' => $settings,
             'categories' => Category::all()->toArray(),
             'units' => Unit::all()->toArray(),
             'suppliers' => Supplier::all()->toArray(),
