@@ -24,13 +24,18 @@ class LineNotifier
             return false;
         }
 
+        $isTransfer = in_array($sale->payment_method, ['promptpay', 'bank'], true);
         $method = match ($sale->payment_method) {
             'promptpay' => 'พร้อมเพย์',
             'bank' => 'โอนธนาคาร',
             default => 'เงินสด',
         };
 
-        $text = "💰 เงินเข้าบัญชีแล้ว\n"
+        // แจ้ง "เงินเข้าบัญชีแล้ว" มีความหมายเฉพาะตอนโอน/พร้อมเพย์ — เงินสดใช้ข้อความแยกกัน ไม่งั้นข้อความคลาดเคลื่อน
+        $text = ($isTransfer
+            ? "💰 เงินเข้าบัญชีแล้ว\n"
+            : "🧾 ขายสำเร็จ (เงินสด)\n"
+        )
             ."ร้าน: {$settings->shop_name}\n"
             ."เลขที่: {$sale->receipt_no}\n"
             .'ยอด: ฿'.number_format((float) $sale->total, 2)."\n"

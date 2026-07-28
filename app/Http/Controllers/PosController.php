@@ -10,6 +10,7 @@ use App\Models\SaleItem;
 use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Support\LineNotifier;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -218,8 +219,10 @@ class PosController extends Controller
                 }
 
                 $vatParts = Sale::splitVat($total, $vatRate);
-                $receiptNo = 'INV'.now()->format('Ymd').'-'.str_pad((string) $settings->receipt_running, 4, '0', STR_PAD_LEFT);
-                $settings->increment('receipt_running');
+                // ล็อกแถว settings กันสองการขายพร้อมกันแย่งเลขที่ใบเสร็จเดียวกัน (receipt_no เป็น unique)
+                $lockedSettings = Setting::query()->lockForUpdate()->findOrFail($settings->id);
+                $receiptNo = 'INV'.now()->format('Ymd').'-'.str_pad((string) $lockedSettings->receipt_running, 4, '0', STR_PAD_LEFT);
+                $lockedSettings->increment('receipt_running');
 
                 $sale = Sale::create([
                     'receipt_no' => $receiptNo,
@@ -248,7 +251,7 @@ class PosController extends Controller
                     SaleItem::create([
                         'sale_id' => $sale->id,
                         'product_id' => $product->id,
-                        'product_name' => $product->name,
+                        'product_name' => $product->displayName(),
                         'qty' => $qty,
                         'unit_price' => $product->sell_price,
                         'cost_price' => $product->cost_price,
@@ -271,6 +274,9 @@ class PosController extends Controller
             });
         } catch (\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (QueryException $e) {
+            // เผื่อกรณี unique constraint ของ receipt_no ชนกันจริงๆ ให้ลองอีกครั้งตามปกติแทนที่จะขึ้น 500
+            return response()->json(['ok' => false, 'message' => 'ออกเลขที่ใบเสร็จซ้ำ กรุณากดยืนยันการชำระเงินอีกครั้ง'], 409);
         }
 
         try {

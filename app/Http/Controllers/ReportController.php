@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +14,7 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
-        $from = $request->input('from', Carbon::today()->toDateString());
-        $to = $request->input('to', Carbon::today()->toDateString());
+        [$from, $to] = $this->resolveDateRange($request->input('from'), $request->input('to'));
         $perPage = (int) $request->input('per_page', 25);
         if (! in_array($perPage, [25, 50, 100], true)) {
             $perPage = 25;
@@ -81,6 +81,32 @@ class ReportController extends Controller
             'catRev',
             'cancelledCount',
             'canViewCost'
-        ));
+        ) + ['shopName' => Setting::current()->shop_name]);
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function resolveDateRange(?string $from, ?string $to): array
+    {
+        $today = Carbon::today()->toDateString();
+
+        try {
+            $from = $from ? Carbon::parse($from)->toDateString() : $today;
+        } catch (\Throwable) {
+            $from = $today;
+        }
+
+        try {
+            $to = $to ? Carbon::parse($to)->toDateString() : $today;
+        } catch (\Throwable) {
+            $to = $today;
+        }
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
     }
 }

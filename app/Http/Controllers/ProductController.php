@@ -205,6 +205,9 @@ class ProductController extends Controller
     {
         $data = $this->validated($request);
         $data = $this->normalizeProductData($data);
+        if (! auth()->user()?->canViewCost()) {
+            $data['cost_price'] = 0;
+        }
         $data['barcode'] = $data['barcode'] ?: $this->generateBarcode(
             categoryId: isset($data['category_id']) ? (int) $data['category_id'] : null
         );
@@ -236,28 +239,44 @@ class ProductController extends Controller
         $data = $this->validated($request, $product->id);
         $data = $this->normalizeProductData($data);
         $data['barcode'] = $data['barcode'] ?: $product->barcode;
+        if (! auth()->user()?->canViewCost()) {
+            // เฉพาะเจ้าของร้านเท่านั้นที่แก้ราคาทุนได้ — พนักงานส่งค่ามาก็ไม่มีผล คงราคาทุนเดิมไว้
+            $data['cost_price'] = $product->cost_price;
+        }
 
-        if ($request->boolean('clear_image')) {
-            ImageUploader::clear($product->image_url);
-            $data['image_url'] = null;
-        } else {
+        if ($request->hasFile('image') || $request->filled('image_url_link')) {
+            // อัปโหลดรูปใหม่/ใส่ลิงก์ใหม่ต้องชนะติ๊ก "ลบรูป" เสมอ ไม่งั้นเลือกรูปใหม่แล้วจะได้ไม่มีรูปแทน
             $data['image_url'] = ImageUploader::storeProductImage(
                 $request->file('image'),
                 $request->filled('image_url_link') ? $request->input('image_url_link') : null,
                 $product->image_url
             );
+        } elseif ($request->boolean('clear_image')) {
+            ImageUploader::clear($product->image_url);
+            $data['image_url'] = null;
+        } else {
+            $data['image_url'] = $product->image_url;
         }
 
         $oldStock = (float) $product->stock;
+        $wasTrackingStock = $product->tracksStock();
         $product->update($data);
         $newStock = (float) $product->stock;
+        $isTrackingStock = $product->tracksStock();
 
-        if ($product->tracksStock() && $oldStock !== $newStock) {
+        // บันทึกความเคลื่อนไหวสต๊อกไว้เป็นหลักฐาน แม้ตอนแปลงสินค้า<->บริการที่สต๊อกถูกล้างเป็น 0 ก็ตาม
+        if (($wasTrackingStock || $isTrackingStock) && $oldStock !== $newStock) {
+            $note = $wasTrackingStock && ! $isTrackingStock
+                ? 'ปรับสต๊อกเป็น 0 จากการแปลงเป็นบริการ'
+                : ($isTrackingStock && ! $wasTrackingStock
+                    ? 'ตั้งสต๊อกเริ่มต้นจากการแปลงเป็นสินค้า'
+                    : 'ปรับสต๊อกจากการแก้ไขสินค้า');
+
             StockMovement::create([
                 'product_id' => $product->id,
                 'type' => 'ADJUST',
                 'qty' => $newStock - $oldStock,
-                'note' => 'ปรับสต๊อกจากการแก้ไขสินค้า',
+                'note' => $note,
             ]);
         }
 
@@ -356,7 +375,7 @@ class ProductController extends Controller
             'sell_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|numeric|min:0',
             'min_stock' => 'nullable|numeric|min:0',
-            'max_stock' => 'nullable|numeric|min:0',
+            'max_stock' => 'nullable|numeric|min:0|gte:min_stock',
             'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:8192',
             'image_url_link' => 'nullable|url|max:500',
             'clear_image' => 'nullable|boolean',
@@ -370,6 +389,7 @@ class ProductController extends Controller
             'barcode.unique' => 'บาร์โค้ดนี้มีอยู่แล้ว',
             'product_group_id.exists' => 'ไม่พบกลุ่มสินค้าที่เลือก',
             'type.in' => 'ประเภทต้องเป็นสินค้าหรือบริการ',
+            'max_stock.gte' => 'ค่า Max ต้องมากกว่าหรือเท่ากับ Min',
         ]);
     }
 

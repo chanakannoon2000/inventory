@@ -158,9 +158,19 @@ function getSelectedAccount(){
   return PAYMENT_ACCOUNTS.find(a => a.id === selectedAccountId) || PAYMENT_ACCOUNTS[0] || null;
 }
 
+// ป้องกัน XSS: ชื่อสินค้า/บัญชี/ที่อยู่รูปมาจากข้อมูลที่ผู้ใช้กรอกได้ ต้อง escape ก่อนใส่ลงใน innerHTML เสมอ
+function escHtml(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
 function productThumb(p, cls){
-  if(p.image) return `<img class="${cls}" src="${p.image}" alt="">`;
-  return `<div class="${cls} ph-icon">${p.icon||'📦'}</div>`;
+  if(p.image) return `<img class="${cls}" src="${escHtml(p.image)}" alt="">`;
+  return `<div class="${cls} ph-icon">${escHtml(p.icon||'📦')}</div>`;
 }
 
 function addToCartFromCard(el){
@@ -202,14 +212,14 @@ function openSizePicker(el){
       <button type="button" class="size-opt ${disabled ? 'disabled' : ''} ${v.low ? 'low' : ''}"
         ${disabled ? 'disabled' : ''}
         onclick="pickSizeVariant(${i})">
-        <span class="size-opt-label">${v.size || v.name}</span>
+        <span class="size-opt-label">${escHtml(v.size || v.name)}</span>
         <span class="size-opt-price mono">${money(v.price)}</span>
-        <span class="size-opt-stock ${v.low || disabled ? 'warn' : ''}">${stockTxt}</span>
+        <span class="size-opt-stock ${v.low || disabled ? 'warn' : ''}">${escHtml(stockTxt)}</span>
       </button>`;
   }).join('');
 
   openModal(`
-    <div class="mh"><h3>${title}</h3><button class="xbtn" type="button" onclick="closeModal()">✕</button></div>
+    <div class="mh"><h3>${escHtml(title)}</h3><button class="xbtn" type="button" onclick="closeModal()">✕</button></div>
     <div class="mb">
       <div class="helptext" style="margin-bottom:10px;">เลือกขนาดที่ต้องการ</div>
       <div class="size-opt-list">${rows}</div>
@@ -289,8 +299,8 @@ function renderCart(){
       <div class="citem">
         ${productThumb(c,'ci-thumb')}
         <div class="ci-info">
-          <div class="ci-nm">${c.name}${c.is_service ? ' <span class="badge ok" style="font-size:10px;vertical-align:middle;">บริการ</span>' : ''}</div>
-          <div class="ci-sub">${money(c.price)} / ${c.unit||'ชิ้น'}</div>
+          <div class="ci-nm">${escHtml(c.name)}${c.is_service ? ' <span class="badge ok" style="font-size:10px;vertical-align:middle;">บริการ</span>' : ''}</div>
+          <div class="ci-sub">${money(c.price)} / ${escHtml(c.unit||'ชิ้น')}</div>
           <div class="ci-row">
             <div class="ci-line">${money(c.price * c.qty)}</div>
             <div class="ci-qty">
@@ -384,13 +394,10 @@ function renderQr(el, text){
     el.innerHTML = `<div class="helptext" style="color:#C1443C;">สร้าง QR ไม่สำเร็จ</div>`;
   }
 }
-function fallbackPromptPayId(){
-  const pp = PAYMENT_ACCOUNTS.find(a => a.type === 'promptpay' && a.promptpay_id);
-  return pp ? pp.promptpay_id : '';
-}
 function promptPayIdForAccount(acc){
+  // ห้าม fallback ไปใช้เบอร์พร้อมเพย์ของบัญชีอื่น — ไม่งั้น QR อาจโอนเงินเข้าคนละบัญชีกับที่แสดงบนจอ
   if(!acc) return '';
-  return acc.promptpay_id || (acc.type === 'bank' ? fallbackPromptPayId() : '') || '';
+  return acc.promptpay_id || '';
 }
 function qrPayloadForAccount(acc, total){
   const ppId = promptPayIdForAccount(acc);
@@ -436,9 +443,9 @@ function renderTransferAccount(total){
   if(acc.type === 'promptpay'){
     const qrPayload = promptPayPayload(acc.promptpay_id, total);
     detail.innerHTML = `
-      <div class="helptext" style="margin-bottom:8px;">ให้ลูกค้าสแกน QR พร้อมเพย์ · ${acc.label}</div>
+      <div class="helptext" style="margin-bottom:8px;">ให้ลูกค้าสแกน QR พร้อมเพย์ · ${escHtml(acc.label)}</div>
       <div id="promptPayQr" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px;"></div>
-      <div class="mono" style="margin-top:10px;font-weight:700;">พร้อมเพย์ ${acc.promptpay_id}</div>
+      <div class="mono" style="margin-top:10px;font-weight:700;">พร้อมเพย์ ${escHtml(acc.promptpay_id)}</div>
       <div class="helptext">ยอด ${money(total)} · โอนแล้วกดยืนยันด้านล่าง</div>`;
     renderQr(document.getElementById('promptPayQr'), qrPayload);
   } else {
@@ -448,12 +455,12 @@ function renderTransferAccount(total){
       <div class="helptext" style="margin-bottom:8px;">สแกน QR พร้อมเพย์เพื่อโอน · แสดงรายละเอียดบัญชีด้านล่าง</div>
       ${qrPayload ? `
         <div id="bankPayQr" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px;"></div>
-        <div class="mono" style="margin-top:10px;font-weight:700;">พร้อมเพย์ ${ppId}</div>
+        <div class="mono" style="margin-top:10px;font-weight:700;">พร้อมเพย์ ${escHtml(ppId)}</div>
       ` : `<div class="helptext" style="color:#C1443C;margin-bottom:10px;">ยังไม่มีเบอร์พร้อมเพย์สำหรับสร้าง QR — ไปแก้ที่เมนูบัญชีรับเงิน</div>`}
       <div style="padding:14px;background:#FBF9F4;border:1px solid var(--line);border-radius:10px;text-align:left;margin-top:10px;">
-        <div style="font-weight:700;margin-bottom:6px;">${acc.bank_name || 'ธนาคาร'}</div>
-        <div>ชื่อบัญชี: <strong>${acc.bank_account_name || '—'}</strong></div>
-        <div class="mono" style="font-size:18px;margin-top:6px;letter-spacing:.04em;">${acc.bank_account_no}</div>
+        <div style="font-weight:700;margin-bottom:6px;">${escHtml(acc.bank_name || 'ธนาคาร')}</div>
+        <div>ชื่อบัญชี: <strong>${escHtml(acc.bank_account_name || '—')}</strong></div>
+        <div class="mono" style="font-size:18px;margin-top:6px;letter-spacing:.04em;">${escHtml(acc.bank_account_no)}</div>
         <div class="helptext" style="margin-top:8px;">ยอดโอน ${money(total)} · โอนแล้วกดยืนยันด้านล่าง</div>
       </div>`;
     renderQr(document.getElementById('bankPayQr'), qrPayload);
@@ -466,7 +473,7 @@ function openCheckout(){
   selectedAccountId = DEFAULT_ACCOUNT_ID || (PAYMENT_ACCOUNTS[0] && PAYMENT_ACCOUNTS[0].id) || null;
 
   const accountOptions = PAYMENT_ACCOUNTS.length
-    ? PAYMENT_ACCOUNTS.map(a => `<option value="${a.id}" ${a.id===selectedAccountId?'selected':''}>${a.label}${a.is_default?' (Default)':''}</option>`).join('')
+    ? PAYMENT_ACCOUNTS.map(a => `<option value="${a.id}" ${a.id===selectedAccountId?'selected':''}>${escHtml(a.label)}${a.is_default?' (Default)':''}</option>`).join('')
     : `<option value="">— ยังไม่มีบัญชี —</option>`;
 
   openModal(`
@@ -618,15 +625,15 @@ function showReceipt(sale){
     const ppId = (acc && acc.promptpay_id) || sale.promptpay_id || '';
     transferBlock = `
       <hr>
-      <div style="text-align:center;font-size:11px;">ชำระผ่านพร้อมเพย์ ${ppId}${acc?.label ? ' · '+acc.label : ''}</div>
+      <div style="text-align:center;font-size:11px;">ชำระผ่านพร้อมเพย์ ${escHtml(ppId)}${acc?.label ? ' · '+escHtml(acc.label) : ''}</div>
       <div id="receiptPpQr" style="display:flex;justify-content:center;margin:8px 0;"></div>`;
   } else if(sale.payment_method === 'bank'){
     transferBlock = `
       <hr>
       <div style="text-align:center;font-size:11px;line-height:1.5;">
-        โอนเข้า ${acc?.bank_name || 'ธนาคาร'}<br>
-        ${acc?.bank_account_name || ''}<br>
-        <span class="mono">${acc?.bank_account_no || ''}</span>
+        โอนเข้า ${escHtml(acc?.bank_name || 'ธนาคาร')}<br>
+        ${escHtml(acc?.bank_account_name || '')}<br>
+        <span class="mono">${escHtml(acc?.bank_account_no || '')}</span>
       </div>
       <div id="receiptBankQr" style="display:flex;justify-content:center;margin:8px 0;"></div>`;
   } else {
@@ -640,15 +647,15 @@ function showReceipt(sale){
     <div class="mh"><h3>ใบเสร็จ</h3><button class="xbtn" type="button" onclick="closeModal(); location.reload();">✕</button></div>
     <div class="mb">
       <div class="receipt" id="receiptPrint">
-        <div style="text-align:center;font-weight:700;font-size:14px;">${sale.shop_name}</div>
-        <div style="text-align:center;">เลขที่ ${sale.receipt_no}</div>
-        <div style="text-align:center;">${sale.sold_at}</div>
+        <div style="text-align:center;font-weight:700;font-size:14px;">${escHtml(sale.shop_name)}</div>
+        <div style="text-align:center;">เลขที่ ${escHtml(sale.receipt_no)}</div>
+        <div style="text-align:center;">${escHtml(sale.sold_at)}</div>
         <hr>
         <div class="ritem head"><span>รายการสินค้า</span><span class="qty">จำนวน</span><span class="price">ราคา</span></div>
         ${sale.items.map(it => `
           <div class="ritem">
-            <span class="name">${it.name}</span>
-            <span class="qty">${it.qty}</span>
+            <span class="name">${escHtml(it.name)}</span>
+            <span class="qty">${escHtml(it.qty)}</span>
             <span class="price">${fmt(it.total)}</span>
           </div>`).join('')}
         <hr>

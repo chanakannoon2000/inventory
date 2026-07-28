@@ -37,91 +37,111 @@ class SaleController extends Controller
 
     public function cancel(Request $request, Sale $sale)
     {
-        if ($sale->isCancelled()) {
-            return back()->with('error', 'บิลนี้ถูกยกเลิกไปแล้ว');
-        }
-
         $data = $request->validate([
             'cancel_reason' => 'nullable|string|max:255',
         ]);
 
-        DB::transaction(function () use ($sale, $data) {
-            $sale->load('items');
+        try {
+            DB::transaction(function () use ($sale, $data) {
+                // ล็อกแถวบิลกันกดยกเลิกซ้ำพร้อมกันจนคืนสต๊อกซ้ำสองรอบ
+                $locked = Sale::lockForUpdate()->findOrFail($sale->id);
 
-            foreach ($sale->items as $item) {
-                $this->returnStock($sale, $item, (float) $item->qty, 'ยกเลิกบิล '.$sale->receipt_no);
-            }
+                if ($locked->isCancelled()) {
+                    throw new \RuntimeException('บิลนี้ถูกยกเลิกไปแล้ว');
+                }
 
-            $sale->update([
-                'cancelled_at' => now(),
-                'cancelled_by' => auth()->id(),
-                'cancel_reason' => $data['cancel_reason'] ?? null,
-            ]);
-        });
+                $locked->load('items');
+
+                foreach ($locked->items as $item) {
+                    $this->returnStock($locked, $item, (float) $item->qty, 'ยกเลิกบิล '.$locked->receipt_no);
+                }
+
+                $locked->update([
+                    'cancelled_at' => now(),
+                    'cancelled_by' => auth()->id(),
+                    'cancel_reason' => $data['cancel_reason'] ?? null,
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'ยกเลิกบิล '.$sale->receipt_no.' แล้ว และคืนสต๊อกเรียบร้อย');
     }
 
     public function removeItem(Request $request, Sale $sale, SaleItem $item)
     {
-        if ($sale->isCancelled()) {
-            return response()->json(['ok' => false, 'message' => 'บิลนี้ถูกยกเลิกไปแล้ว'], 422);
-        }
-
-        if ($item->sale_id !== $sale->id) {
-            return response()->json(['ok' => false, 'message' => 'รายการไม่ตรงกับบิล'], 422);
-        }
-
         $data = $request->validate([
             'qty' => 'nullable|numeric|min:0.01',
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $voidQty = isset($data['qty']) ? (float) $data['qty'] : (float) $item->qty;
-        if ($voidQty > (float) $item->qty) {
-            return response()->json(['ok' => false, 'message' => 'จำนวนที่ยกเลิกเกินในบิล'], 422);
-        }
-
         $reason = $data['reason'] ?? 'ลูกค้าขอยกเลิกรายการ';
 
-        $result = DB::transaction(function () use ($sale, $item, $voidQty, $reason) {
-            $this->returnStock(
-                $sale,
-                $item,
-                $voidQty,
-                'ยกเลิกรายการบิล '.$sale->receipt_no.($reason ? ' · '.$reason : '')
-            );
+        try {
+            $result = DB::transaction(function () use ($sale, $item, $data, $reason) {
+                // ล็อกทั้งบิลและรายการกันกดยกเลิกซ้ำพร้อมกันจนคืนสต๊อก/หักยอดซ้ำ
+                $lockedSale = Sale::lockForUpdate()->findOrFail($sale->id);
 
-            $remaining = (float) $item->qty - $voidQty;
-            if ($remaining <= 0.0001) {
-                $item->delete();
-            } else {
-                $item->update(['qty' => $remaining]);
+                if ($lockedSale->isCancelled()) {
+                    throw new \RuntimeException('บิลนี้ถูกยกเลิกไปแล้ว');
+                }
+
+                $lockedItem = SaleItem::lockForUpdate()->findOrFail($item->id);
+
+                if ($lockedItem->sale_id !== $lockedSale->id) {
+                    throw new \RuntimeException('รายการไม่ตรงกับบิล');
+                }
+
+                $voidQty = isset($data['qty']) ? (float) $data['qty'] : (float) $lockedItem->qty;
+                if ($voidQty > (float) $lockedItem->qty) {
+                    throw new \RuntimeException('จำนวนที่ยกเลิกเกินในบิล');
+                }
+
+                $this->returnStock(
+                    $lockedSale,
+                    $lockedItem,
+                    $voidQty,
+                    'ยกเลิกรายการบิล '.$lockedSale->receipt_no.($reason ? ' · '.$reason : '')
+                );
+
+                $remaining = (float) $lockedItem->qty - $voidQty;
+                if ($remaining <= 0.0001) {
+                    $lockedItem->delete();
+                } else {
+                    $lockedItem->update(['qty' => $remaining]);
+                }
+
+                $lockedSale->refresh()->load('items');
+
+                if ($lockedSale->items->isEmpty()) {
+                    $lockedSale->update([
+                        'subtotal' => 0,
+                        'discount' => 0,
+                        'total' => 0,
+                        'paid' => 0,
+                        'change_amount' => 0,
+                        'net_amount' => 0,
+                        'vat_amount' => 0,
+                        'cancelled_at' => now(),
+                        'cancelled_by' => auth()->id(),
+                        'cancel_reason' => $reason ?: 'ยกเลิกทุกรายการในบิล',
+                    ]);
+
+                    return ['cancelled_bill' => true];
+                }
+
+                $lockedSale->recalculateTotals();
+
+                return ['cancelled_bill' => false];
+            });
+        } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
             }
 
-            $sale->refresh()->load('items');
-
-            if ($sale->items->isEmpty()) {
-                $sale->update([
-                    'subtotal' => 0,
-                    'discount' => 0,
-                    'total' => 0,
-                    'paid' => 0,
-                    'change_amount' => 0,
-                    'net_amount' => 0,
-                    'vat_amount' => 0,
-                    'cancelled_at' => now(),
-                    'cancelled_by' => auth()->id(),
-                    'cancel_reason' => $reason ?: 'ยกเลิกทุกรายการในบิล',
-                ]);
-
-                return ['cancelled_bill' => true];
-            }
-
-            $sale->recalculateTotals();
-
-            return ['cancelled_bill' => false];
-        });
+            return back()->with('error', $e->getMessage());
+        }
 
         $msg = $result['cancelled_bill']
             ? 'ยกเลิกรายการครบแล้ว — บิลถูกยกเลิกทั้งใบ และคืนสต๊อกแล้ว'

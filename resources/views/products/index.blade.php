@@ -15,8 +15,8 @@
                     </button>
                 </form>
             @endif
-            <a class="btn btn-outline btn-sm" href="{{ route('products.export', request()->query() + ['format' => 'csv']) }}">Export CSV</a>
-            <a class="btn btn-outline btn-sm" href="{{ route('products.export', request()->query() + ['format' => 'excel']) }}">Export Excel</a>
+            <a class="btn btn-outline btn-sm" href="{{ route('products.export', array_merge(request()->query(), ['format' => 'csv'])) }}">Export CSV</a>
+            <a class="btn btn-outline btn-sm" href="{{ route('products.export', array_merge(request()->query(), ['format' => 'excel'])) }}">Export Excel</a>
             <button class="btn btn-primary" type="button" id="btnAddProduct">+ เพิ่มรายการ</button>
         </div>
     </div>
@@ -152,6 +152,7 @@
 
 @push('scripts')
 @php
+    $canViewCostJs = auth()->user()->canViewCost();
     $productMap = [];
     foreach ($products as $p) {
         $productMap[(string) $p->id] = [
@@ -164,7 +165,8 @@
             'category_id' => $p->category_id,
             'unit_id' => $p->unit_id,
             'supplier_id' => $p->supplier_id,
-            'cost_price' => $p->cost_price,
+            // ไม่ส่งราคาทุนจริงให้พนักงานที่ไม่มีสิทธิ์ดู ป้องกันเปิด DevTools แล้วเห็นต้นทุน
+            'cost_price' => $canViewCostJs ? $p->cost_price : null,
             'sell_price' => $p->sell_price,
             'stock' => $p->stock,
             'min_stock' => $p->min_stock,

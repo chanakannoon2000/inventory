@@ -40,6 +40,13 @@
 @push('scripts')
 <script>
 const BASE = @json(url('/product-groups'));
+function escAttr(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
 function openMaster(item=null){
   const action = item ? `${BASE}/${item.id}` : BASE;
   openModal(`
@@ -47,7 +54,7 @@ function openMaster(item=null){
     <form class="mb" method="POST" action="${action}">
       <input type="hidden" name="_token" value="${window.CSRF}">
       ${item?'<input type="hidden" name="_method" value="PUT">':''}
-      <div class="field"><label>ชื่อกลุ่ม</label><input name="name" required value="${item?.name||''}" placeholder="เช่น ท่อ PVC สีฟ้า"></div>
+      <div class="field"><label>ชื่อกลุ่ม</label><input name="name" required value="${escAttr(item?.name)}" placeholder="เช่น ท่อ PVC สีฟ้า"></div>
       <div class="helptext">ตั้งชื่อให้ชัดเจน แล้วไปผูกที่หน้าสินค้า พร้อมใส่ไซส์แต่ละรายการ</div>
       <div class="mf" style="margin:16px -20px -18px;">
         <button class="btn btn-outline" type="button" onclick="closeModal()">ยกเลิก</button>

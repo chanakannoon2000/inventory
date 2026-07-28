@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Expense;
+use App\Models\PaymentAccount;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Setting;
@@ -40,14 +42,15 @@ class SettingController extends Controller
 
         $settings = Setting::current();
 
-        if ($request->boolean('clear_logo')) {
-            ImageUploader::clear($settings->shop_logo);
-            $data['shop_logo'] = null;
-        } elseif ($request->hasFile('shop_logo')) {
+        if ($request->hasFile('shop_logo')) {
+            // อัปโหลดไฟล์ใหม่ต้องชนะติ๊ก "ลบโลโก้" เสมอ ไม่งั้นผู้ใช้เลือกรูปใหม่แล้วจะได้ไม่มีรูปแทน
             $data['shop_logo'] = ImageUploader::storeLogo(
                 $request->file('shop_logo'),
                 $settings->shop_logo
             );
+        } elseif ($request->boolean('clear_logo')) {
+            ImageUploader::clear($settings->shop_logo);
+            $data['shop_logo'] = null;
         } else {
             unset($data['shop_logo']);
         }
@@ -130,6 +133,8 @@ class SettingController extends Controller
             'suppliers' => Supplier::all()->toArray(),
             'products' => Product::all()->toArray(),
             'sales' => Sale::with('items')->get()->toArray(),
+            'expenses' => Expense::all()->toArray(),
+            'payment_accounts' => PaymentAccount::all()->toArray(),
         ];
 
         $filename = 'inventory-backup-'.now()->format('Y-m-d').'.json';

@@ -22,23 +22,17 @@
             @csrf
             <div class="field">
                 <label>อีเมล</label>
-                <input type="email" name="email" value="{{ old('email', 'owner@shop.local') }}" required autofocus>
+                <input type="email" name="email" value="{{ old('email') }}" required autofocus>
             </div>
             <div class="field">
                 <label>รหัสผ่าน</label>
-                <input type="password" name="password" value="owner123" required>
+                <input type="password" name="password" required>
             </div>
             <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
                 <input type="checkbox" name="remember" value="1" style="width:auto;"> จดจำการเข้าสู่ระบบ
             </label>
             <button class="btn btn-primary" style="width:100%;justify-content:center;" type="submit">เข้าสู่ระบบ</button>
         </form>
-
-        <div class="helptext" style="margin-top:18px; line-height:1.6;">
-            <strong>บัญชีทดสอบ</strong><br>
-            เจ้าของร้าน: owner@shop.local / owner123<br>
-            แคชเชียร์: cashier@shop.local / cashier123
-        </div>
     </div>
 </div>
 </body>

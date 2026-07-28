@@ -36,6 +36,13 @@
 @push('scripts')
 <script>
 const BASE = @json(url('/units'));
+function escAttr(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
 function openMaster(item=null){
   const action = item ? `${BASE}/${item.id}` : BASE;
   openModal(`
@@ -43,7 +50,7 @@ function openMaster(item=null){
     <form class="mb" method="POST" action="${action}">
       <input type="hidden" name="_token" value="${window.CSRF}">
       ${item?'<input type="hidden" name="_method" value="PUT">':''}
-      <div class="field"><label>ชื่อหน่วยนับ</label><input name="name" required value="${item?.name||''}"></div>
+      <div class="field"><label>ชื่อหน่วยนับ</label><input name="name" required value="${escAttr(item?.name)}"></div>
       <div class="mf" style="margin:16px -20px -18px;">
         <button class="btn btn-outline" type="button" onclick="closeModal()">ยกเลิก</button>
         <button class="btn btn-primary" type="submit">บันทึก</button>
