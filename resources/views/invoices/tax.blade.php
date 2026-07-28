@@ -52,6 +52,19 @@
             .toolbar,.cust-form,.flash{display:none!important;}
             .invoice{border:none; box-shadow:none; border-radius:0; padding:0;}
         }
+        .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+        @media (max-width:640px){
+            .wrap{margin:12px auto; padding:0 10px 30px;}
+            .invoice{padding:16px 14px;}
+            .head{flex-direction:column; gap:14px;}
+            .doc-title{text-align:left;}
+            .meta{grid-template-columns:1fr; gap:10px;}
+            .sign{grid-template-columns:1fr; gap:24px; margin-top:30px;}
+            table{font-size:12px;}
+            th,td{padding:6px 4px;}
+            .totals{width:100%;}
+            .row2{grid-template-columns:1fr;}
+        }
     </style>
 </head>
 <body>
@@ -131,6 +144,7 @@
             </div>
         </div>
 
+        <div class="table-scroll">
         <table>
             <thead>
             <tr>
@@ -153,6 +167,7 @@
             @endforeach
             </tbody>
         </table>
+        </div>
 
         <div class="totals">
             <div class="row"><span>รวมเป็นเงิน</span><span>{{ number_format((float)$sale->subtotal, 2) }}</span></div>

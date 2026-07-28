@@ -79,6 +79,7 @@
 
 <div class="overlay" id="overlay"><div class="modal" id="modalBox"></div></div>
 <div class="toast" id="toast"></div>
+<div id="sidebarBackdrop"></div>
 
 <script>
 window.CSRF = document.querySelector('meta[name="csrf-token"]').content;
@@ -130,16 +131,38 @@ function confirmDelete(form, message){
   const sidebar = document.getElementById('sidebar');
   if(!sidebar) return;
 
+  const backdrop = document.getElementById('sidebarBackdrop');
+  // จอมือถือ: เมนูจะเป็นแผงเลื่อนเข้า-ออกทับหน้าจอ (off-canvas) แทนการย่อเป็นแถบไอคอน
+  const isMobile = () => window.matchMedia('(max-width: 640px)').matches;
+
   function apply(collapsed){
     sidebar.classList.toggle('collapsed', collapsed);
     document.body.classList.toggle('sidebar-collapsed', collapsed);
     localStorage.setItem(KEY, collapsed ? '1' : '0');
   }
 
+  function openMobile(){
+    sidebar.classList.add('mobile-open');
+    backdrop?.classList.add('show');
+  }
+  function closeMobile(){
+    sidebar.classList.remove('mobile-open');
+    backdrop?.classList.remove('show');
+  }
+
   apply(localStorage.getItem(KEY) === '1');
 
-  function toggle(){ apply(!sidebar.classList.contains('collapsed')); }
+  function toggle(){
+    if(isMobile()){
+      sidebar.classList.contains('mobile-open') ? closeMobile() : openMobile();
+    } else {
+      apply(!sidebar.classList.contains('collapsed'));
+    }
+  }
   document.getElementById('sidebarToggleTop')?.addEventListener('click', toggle);
+  backdrop?.addEventListener('click', closeMobile);
+  sidebar.querySelectorAll('a.navbtn').forEach(a => a.addEventListener('click', () => { if(isMobile()) closeMobile(); }));
+  window.addEventListener('resize', () => { if(!isMobile()) closeMobile(); });
 })();
 </script>
 @stack('scripts')
