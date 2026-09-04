@@ -150,6 +150,10 @@
 </template>
 @endsection
 
+@push('vendor_scripts')
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+@endpush
+
 @push('scripts')
 @php
     $canViewCostJs = auth()->user()->canViewCost();

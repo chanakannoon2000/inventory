@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'แดชบอร์ด') — {{ $shopName ?? 'คลังสินค้า' }}</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     @stack('head')
 </head>
 <body>
+<div id="pageLoadBar"></div>
 <div id="app">
     <aside id="sidebar">
         <div class="brand">
@@ -164,7 +161,53 @@ function confirmDelete(form, message){
   sidebar.querySelectorAll('a.navbtn').forEach(a => a.addEventListener('click', () => { if(isMobile()) closeMobile(); }));
   window.addEventListener('resize', () => { if(!isMobile()) closeMobile(); });
 })();
+
+// แถบโหลดด้านบน: กดเมนู/ลิงก์แล้วขึ้นทันทีเป็น feedback ทันใจ ไม่รู้สึกว่าเว็บค้าง
+// เพราะระบบนี้ยังโหลดหน้าใหม่ทั้งหน้า (ไม่ใช่ SPA) ระหว่างรอเซิร์ฟเวอร์ตอบกลับจะรู้สึกลื่นขึ้นมาก
+(function(){
+  const bar = document.getElementById('pageLoadBar');
+  if(!bar) return;
+  let width = 0, timer = null;
+
+  function start(){
+    clearInterval(timer);
+    bar.classList.add('active');
+    width = 20;
+    bar.style.width = width + '%';
+    timer = setInterval(() => {
+      width += (90 - width) * 0.1;
+      bar.style.width = width + '%';
+    }, 200);
+  }
+  function finish(){
+    clearInterval(timer);
+    bar.style.width = '100%';
+    setTimeout(() => { bar.classList.remove('active'); bar.style.width = '0%'; }, 200);
+  }
+
+  start();
+  window.addEventListener('load', finish);
+  window.addEventListener('pageshow', finish); // เผื่อกดปุ่มย้อนกลับแล้วเบราว์เซอร์ใช้หน้าจาก bfcache
+
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a[href]');
+    if(!a || a.target === '_blank' || a.hasAttribute('download')) return;
+    const href = a.getAttribute('href') || '';
+    if(!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+    if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if(a.origin && a.origin !== location.origin) return;
+    start();
+  });
+  document.addEventListener('submit', function(e){
+    if(e.target.tagName === 'FORM' && !e.defaultPrevented) start();
+  });
+})();
 </script>
+{{-- ไลบรารีภายนอกย้ายมาไว้ท้ายหน้าแทนที่จะบล็อกอยู่ใน <head> ทุกหน้า ทำให้หน้าเว็บขึ้นและใช้งานได้เร็วขึ้นทันที
+     - SweetAlert2 โหลดทุกหน้าเพราะใช้กับ popup ยืนยัน/แจ้งเตือนแทบทุกที่
+     - QRCode/JsBarcode/Chart.js โหลดเฉพาะหน้าที่ใช้จริง ผ่าน @push('vendor_scripts') --}}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@stack('vendor_scripts')
 @stack('scripts')
 </body>
 </html>
