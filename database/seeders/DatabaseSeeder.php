@@ -17,7 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         User::updateOrCreate(
             ['email' => 'owner@shop.local'],
-            ['name' => 'เจ้าของร้าน', 'password' => Hash::make('owner123'), 'role' => 'owner']
+            [
+                'name' => 'เจ้าของร้าน',
+                'username' => 'admin',
+                'password' => Hash::make('admin'),
+                'role' => 'owner',
+            ]
         );
 
         User::updateOrCreate(

@@ -21,12 +21,12 @@
         <form method="POST" action="{{ route('login') }}">
             @csrf
             <div class="field">
-                <label>อีเมล</label>
-                <input type="email" name="email" value="{{ old('email') }}" required autofocus>
+                <label>ชื่อผู้ใช้หรืออีเมล</label>
+                <input type="text" name="login" value="{{ old('login') }}" autocomplete="username" required autofocus>
             </div>
             <div class="field">
                 <label>รหัสผ่าน</label>
-                <input type="password" name="password" required>
+                <input type="password" name="password" autocomplete="current-password" required>
             </div>
             <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
                 <input type="checkbox" name="remember" value="1" style="width:auto;"> จดจำการเข้าสู่ระบบ
